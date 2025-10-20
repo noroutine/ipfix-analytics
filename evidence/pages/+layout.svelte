@@ -5,6 +5,6 @@
 	export let data;
 </script>
 
-<EvidenceDefaultLayout {data} hideSidebar=true hideHeader=true title="IPFIX Analytics" neverShowQueries=true hideBreadcrumbs=true builtWithEvidence=false>
+<EvidenceDefaultLayout {data} hideSidebar=true title="IPFIX Analytics" neverShowQueries=true hideBreadcrumbs=true githubRepo="https://github.com/noroutine/ipfix-analytics">
 	<slot slot="content" />
 </EvidenceDefaultLayout>
