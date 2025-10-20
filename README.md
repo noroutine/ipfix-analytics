@@ -6,31 +6,31 @@ Network flow analytics pipeline that processes IPFIX data through ClickHouse, tr
 
 ```mermaid
 graph LR
-    R1[Router 1] -->|IPFIX| GF[goflow2]
-    R2[Router 2] -->|IPFIX| GF
-    R3[Router 3] -->|IPFIX| GF
+    RT1[Router 1] -->|IPFIX| GF[goflow2]
+    RT2[Router 2] -->|IPFIX| GF
+    RT3[Router 3] -->|IPFIX| GF
 
     GF -->|flows| K[Kafka]
     K -->|stream| CH[(ClickHouse)]
 
-    CH -->|dump every 5min| M[MinIO<br/>ipfix bucket]
+    CH -->|dump every 5min| M["MinIO<br/>ipfix bucket"]
     M -->|read| DBT[dbt]
 
     DBT -->|marts| EV[Evidence]
-    EV -->|static site| R2[R2<br/>ipfix-analytics]
+    EV -->|static site| R2["R2<br/>ipfix-analytics"]
 
     P[Prefect] -.->|orchestrates| DBT
     P -.->|orchestrates| EV
     P -.->|orchestrates| R2
 
-    style GF fill:#4a90e2
-    style K fill:#231f20
-    style CH fill:#fc0
-    style M fill:#c72c48
-    style DBT fill:#ff694b
-    style EV fill:#4a90e2
-    style R2 fill:#f38020
-    style P fill:#4051b5
+    style GF fill:#4a90e2,color:#fff
+    style K fill:#231f20,color:#fff
+    style CH fill:#fc0,color:#000
+    style M fill:#c72c48,color:#fff
+    style DBT fill:#ff694b,color:#fff
+    style EV fill:#4a90e2,color:#fff
+    style R2 fill:#f38020,color:#fff
+    style P fill:#4051b5,color:#fff
 ```
 
 ## Pipeline Stages
