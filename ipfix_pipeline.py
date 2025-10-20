@@ -127,6 +127,62 @@ def build_evidence() -> str:
     logger.info("Evidence build completed successfully!")
     return "build completed"
 
+@task(name="Deploy to R2", retries=2)
+def deploy_to_r2() -> str:
+    """
+    Deploy Evidence build directory to Cloudflare R2 using rclone.
+    """
+    logger = get_run_logger()
+    evidence_dir = Path(__file__).parent / "evidence"
+    build_dir = evidence_dir / "build"
+
+    logger.info(f"Deploying {build_dir} to R2...")
+
+    # rclone copy with good options:
+    # -v = verbose output
+    # --progress = show progress during transfer
+    # --stats 10s = show stats every 10 seconds
+    # --checksum = use checksums instead of mod-time & size
+    # --exclude .DS_Store = skip macOS metadata files
+    process = subprocess.Popen(
+        [
+            "rclone", "copy",
+            "build/",
+            "r2:ipfix-analytics",
+            "-v",
+            "--progress",
+            "--stats", "10s",
+            "--checksum",
+            "--exclude", ".DS_Store"
+        ],
+        cwd=evidence_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+
+    # Stream output
+    output_lines = []
+    for line in process.stdout:
+        line = line.rstrip()
+        logger.info(line)
+        output_lines.append(line)
+
+    process.wait()
+
+    if process.returncode != 0:
+        error_msg = f"rclone copy failed with return code {process.returncode}"
+        logger.error(error_msg)
+        raise subprocess.CalledProcessError(
+            process.returncode,
+            ["rclone", "copy"],
+            output="\n".join(output_lines)
+        )
+
+    logger.info("Deployment to R2 completed successfully!")
+    return "deployed to R2"
+
 @flow(name="IPFIX Analytics Pipeline", log_prints=True)
 def ipfix_pipeline():
     """
@@ -134,6 +190,7 @@ def ipfix_pipeline():
     1. Runs dbt build to materialize staging and mart models to DuckDB
     2. Refreshes Evidence sources (runs queries against updated DuckDB)
     3. Builds Evidence static site
+    4. Deploys build to Cloudflare R2
     """
 
     print("Starting IPFIX Analytics Pipeline...")
@@ -153,12 +210,18 @@ def ipfix_pipeline():
     build_status = build_evidence()
     print(f"Evidence build: {build_status}")
 
+    # Step 4: Deploy to R2
+    print("Step 4: Deploying to R2...")
+    deploy_status = deploy_to_r2()
+    print(f"R2 deployment: {deploy_status}")
+
     print("Pipeline completed successfully!")
 
     return {
         "dbt_status": "success",
         "evidence_sources": sources_status,
-        "evidence_build": build_status
+        "evidence_build": build_status,
+        "r2_deploy": deploy_status
     }
 
 
