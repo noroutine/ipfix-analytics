@@ -5,13 +5,14 @@ Network flow analytics pipeline that processes IPFIX data through ClickHouse, tr
 ## Architecture
 
 ```mermaid
-graph LR
+graph TD
     RT1[Router 1] -->|IPFIX| GF[goflow2]
     RT2[Router 2] -->|IPFIX| GF
     RT3[Router 3] -->|IPFIX| GF
 
     GF -->|flows| K[Kafka]
-    K -->|stream| CH[(ClickHouse)]
+    K -->|consume| FX[Flux]
+    FX -->|insert| CH[(ClickHouse)]
 
     CH -->|dump every 5min| M["MinIO<br/>ipfix bucket"]
     M -->|read| DBT[dbt]
@@ -25,6 +26,7 @@ graph LR
 
     style GF fill:#4a90e2,color:#fff
     style K fill:#231f20,color:#fff
+    style FX fill:#7c4dff,color:#fff
     style CH fill:#fc0,color:#000
     style M fill:#c72c48,color:#fff
     style DBT fill:#ff694b,color:#fff
