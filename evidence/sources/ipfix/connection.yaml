@@ -1,0 +1,6 @@
+# This file was automatically generated
+name: ipfix
+type: duckdb
+options:
+  filename: ipfix.duckdb
+  access_mode: read_only

@@ -1,0 +1,8 @@
+ipfix_analytics:
+  outputs:
+    dev:
+      type: duckdb
+      path: ../evidence/sources/ipfix/ipfix.duckdb
+      threads: 1
+
+  target: dev
