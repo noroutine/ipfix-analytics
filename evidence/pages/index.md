@@ -43,10 +43,11 @@ SELECT * FROM overview_stats
 SELECT * FROM hourly_traffic
 ```
 
-<LineChart 
+<LineChart
   data={traffic_chart}
   x=hour
   y=total_gb
+  xFmt="UTC"
   yAxisTitle="Gigabytes"
   title="Hourly Traffic Volume"
 />

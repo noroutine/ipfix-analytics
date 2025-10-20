@@ -5,8 +5,8 @@
   )
 }}
 
-SELECT 
-    received_hour as hour,
+SELECT
+    (received_hour + interval '1 hour')::timestamp as hour,
     sum(gb) as total_gb,
     count(*) as flow_count,
     avg(bytes) as avg_bytes_per_flow,
