@@ -355,6 +355,9 @@ def ipfix_pipeline(retention_days: int = 5,
 
     print("Starting IPFIX Analytics Pipeline...")
 
+    print(f"Current directory: {os.getcwd()}")
+    print(f"Files here: {os.listdir('.')}")
+
     # Step 1: Run dbt build
     print("Step 1: Running dbt build...")
     dbt_result = run_dbt_build()
