@@ -13,3 +13,4 @@ wheels/
 
 # Prefect work pool directory
 .local-workerpool/
+.ws-mac-00055-docker-pool/

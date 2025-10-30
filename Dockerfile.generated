@@ -1,0 +1,3 @@
+FROM prefecthq/prefect:3.4.24-python3.13
+COPY . /opt/prefect/ipfix-big-data/
+WORKDIR /opt/prefect/ipfix-big-data/

@@ -3888,6 +3888,8 @@ dependencies = [
     { name = "prefect", version = "3.4.24", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "prefect-aws", version = "0.4.20", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
     { name = "prefect-aws", version = "0.6.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+    { name = "prefect-docker", version = "0.5.5", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+    { name = "prefect-docker", version = "0.6.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
     { name = "pyarrow", version = "17.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "pyarrow", version = "21.0.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "python-dotenv", version = "1.0.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
@@ -3907,6 +3909,7 @@ requires-dist = [
     { name = "pandas", specifier = ">=2.0.3" },
     { name = "prefect", specifier = ">=2.20.23" },
     { name = "prefect-aws", specifier = ">=0.4.20" },
+    { name = "prefect-docker", specifier = ">=0.5.5" },
     { name = "pyarrow", specifier = ">=17.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.1" },
 ]
@@ -7293,6 +7296,45 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/fd/02/dd8699a0b551ace72daf7e4461fb59a2c7e315fa98490b17ad8c5943ff66/prefect_aws-0.6.0.tar.gz", hash = "sha256:45b826ed4f3d4a4dc4c25c54e2ed086608047a56f0f3401452802ed03b31754a", size = 134432, upload-time = "2025-10-14T12:39:43.664Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/40/7f/619499028d6c559a2c099c7bccbb97c8e2c98c7c38fecb9dd66613694897/prefect_aws-0.6.0-py3-none-any.whl", hash = "sha256:da01c3b74881273935c86bfdf750bdeab9d62968c526f15a362f839f5b220a58", size = 82537, upload-time = "2025-10-14T12:39:42.412Z" },
+]
+
+[[package]]
+name = "prefect-docker"
+version = "0.5.5"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version == '3.9.*'",
+    "python_full_version > '3.8' and python_full_version < '3.9'",
+    "python_full_version <= '3.8'",
+]
+dependencies = [
+    { name = "docker", marker = "python_full_version < '3.10'" },
+    { name = "prefect", version = "2.20.23", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/74/cc/5b081ee4dc2e0830da50e1e0944363dd01e447401eae6e5b672f560b5c26/prefect_docker-0.5.5.tar.gz", hash = "sha256:1104760b9f64195e19e6ea2e7c2fe0036d2eca804cb8303ac22cbd7db9f81e7b", size = 36416, upload-time = "2024-09-06T17:09:27.614Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ee/ec/1446d3bdf16ca6e194dd0789a54969b3d71613ae2d0f5b8e502559cf0971/prefect_docker-0.5.5-py3-none-any.whl", hash = "sha256:8458582f25d51373c2aa159549253fc1994fa3513bb58716b219cd3f339faa73", size = 25211, upload-time = "2024-09-06T17:09:26.29Z" },
+]
+
+[[package]]
+name = "prefect-docker"
+version = "0.6.6"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.14'",
+    "python_full_version == '3.13.*'",
+    "python_full_version == '3.12.*'",
+    "python_full_version == '3.11.*'",
+    "python_full_version == '3.10.*'",
+]
+dependencies = [
+    { name = "docker", marker = "python_full_version >= '3.10'" },
+    { name = "exceptiongroup", marker = "python_full_version >= '3.10'" },
+    { name = "prefect", version = "3.4.24", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.10'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f0/41/f763035762da3dcf641f6d89956e351d48f76bbf72392e4095a9181c1cc9/prefect_docker-0.6.6.tar.gz", hash = "sha256:fd9a927b36d4b86ccbfd810688b186be07a0b2c99afbae5864aaec89963fa078", size = 39079, upload-time = "2025-05-28T18:06:36.136Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/65/3e/d97e83cd1d0b5d9e40a5cc41838e2b79fc210ec7b533486c5461727cf513/prefect_docker-0.6.6-py3-none-any.whl", hash = "sha256:5b9ab447bfa563cf3304e66b32113727d40fd451144ea3a199e5b6406293eb0b", size = 27518, upload-time = "2025-05-28T18:06:34.773Z" },
 ]
 
 [[package]]

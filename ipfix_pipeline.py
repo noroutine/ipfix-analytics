@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from prefect_aws import AwsCredentials
 import os
 import shutil
+import duckdb
 
 @task(name="Validate environment", retries=0)
 def validate_environment(minio_credentials_block: str,
@@ -200,6 +201,96 @@ def init_evidence() -> str:
 
     logger.info("Evidence dependencies initialized successfully!")
     return "initialized"
+
+@task(name="Setup DuckDB secrets", retries=0)
+def setup_duckdb_secrets(minio_credentials_block: str,
+                         bucket_name: str = "ipfix") -> dict:
+    """
+    Configure DuckDB persistent secret for S3/MinIO access.
+    This allows dbt models to read parquet files directly from MinIO.
+    Uses in-memory database - secrets persist in separate user database.
+
+    Args:
+        minio_credentials_block: Name of the Prefect AwsCredentials block for MinIO access
+        bucket_name: Name of the S3/MinIO bucket (default: "ipfix")
+
+    Returns:
+        Dictionary with setup results
+    """
+    logger = get_run_logger()
+
+    logger.info(f"Setting up DuckDB secrets for MinIO access...")
+
+    # Load MinIO credentials from Prefect block
+    logger.info(f"Loading MinIO credentials from block: {minio_credentials_block}")
+    minio_creds = AwsCredentials.load(minio_credentials_block)
+
+    # Get endpoint URL
+    endpoint_url = None
+    if minio_creds.aws_client_parameters:
+        client_params = minio_creds.aws_client_parameters.model_dump()
+        endpoint_url = client_params.get("endpoint_url")
+
+    # Extract credentials
+    access_key_id = minio_creds.aws_access_key_id
+    secret_access_key = minio_creds.aws_secret_access_key
+
+    # Handle SecretStr objects
+    if hasattr(access_key_id, 'get_secret_value'):
+        access_key_id = access_key_id.get_secret_value()
+    if hasattr(secret_access_key, 'get_secret_value'):
+        secret_access_key = secret_access_key.get_secret_value()
+
+    if not access_key_id or not secret_access_key or not endpoint_url:
+        raise ValueError("Missing access key, secret key, or endpoint in credentials block")
+
+    # Strip protocol from endpoint - DuckDB wants just the domain
+    endpoint_domain = endpoint_url.replace('https://', '').replace('http://', '')
+    logger.info(f"MinIO endpoint: {endpoint_url} -> {endpoint_domain}")
+
+    # Connect to in-memory DuckDB - secrets persist in user database
+    conn = duckdb.connect(':memory:')
+
+    try:
+        # Try to create persistent secret, skip if already exists
+        logger.info("Creating persistent S3 secret (or using existing)...")
+        try:
+            conn.execute(f"""
+                CREATE PERSISTENT SECRET minio_secret (
+                    TYPE S3,
+                    KEY_ID '{access_key_id}',
+                    SECRET '{secret_access_key}',
+                    ENDPOINT '{endpoint_domain}'
+                )
+            """)
+            logger.info("✓ Secret created successfully")
+            secret_created = True
+        except Exception as e:
+            if "already exists" in str(e).lower():
+                logger.info("✓ Secret already exists, skipping creation")
+                secret_created = False
+            else:
+                raise
+
+        # Test the connection by counting records
+        logger.info(f"Testing S3 access by counting records in s3://{bucket_name}/ipfix_*.parquet...")
+        result = conn.execute(f"SELECT count(*) as cnt FROM read_parquet('s3://{bucket_name}/ipfix_*.parquet')").fetchone()
+        record_count = result[0] if result else 0
+
+        logger.info(f"✓ S3 access successful! Found {record_count:,} records")
+
+        return {
+            "secret_created": secret_created,
+            "endpoint": endpoint_domain,
+            "bucket": bucket_name,
+            "test_record_count": record_count
+        }
+
+    except Exception as e:
+        logger.error(f"Failed to setup DuckDB secret: {str(e)}")
+        raise
+    finally:
+        conn.close()
 
 @task(name="Run dbt build", retries=2)
 def run_dbt_build() -> dict:
@@ -539,11 +630,12 @@ def ipfix_pipeline(retention_days: int = 5,
     Main pipeline that:
     0. Validates environment (tools, credentials, directories)
     1. Initializes Evidence dependencies (npm install)
-    2. Runs dbt build to materialize staging and mart models to DuckDB
-    3. Refreshes Evidence sources (runs queries against updated DuckDB)
-    4. Builds Evidence static site
-    5. Deploys build to Cloudflare R2
-    6. Cleans up old parquet files from MinIO bucket (only if all previous steps succeed)
+    2. Sets up DuckDB persistent secrets for S3/MinIO access
+    3. Runs dbt build to materialize staging and mart models to DuckDB
+    4. Refreshes Evidence sources (runs queries against updated DuckDB)
+    5. Builds Evidence static site
+    6. Deploys build to Cloudflare R2
+    7. Cleans up old parquet files from MinIO bucket (only if all previous steps succeed)
 
     Args:
         retention_days: Number of days to retain parquet files in MinIO bucket (default: 5)
@@ -567,28 +659,34 @@ def ipfix_pipeline(retention_days: int = 5,
     init_status = init_evidence()
     print(f"Evidence initialization: {init_status}")
 
-    # Step 2: Run dbt build
-    print("\nStep 2: Running dbt build...")
+    # Step 2: Setup DuckDB secrets for S3/MinIO access
+    print("\nStep 2: Setting up DuckDB secrets...")
+    secrets_result = setup_duckdb_secrets(minio_credentials_block=minio_credentials_block)
+    print(f"✓ DuckDB secret configured for {secrets_result['endpoint']}")
+    print(f"✓ Test query found {secrets_result['test_record_count']:,} records")
+
+    # Step 3: Run dbt build
+    print("\nStep 3: Running dbt build...")
     dbt_result = run_dbt_build()
     print(f"dbt build completed with return code: {dbt_result['returncode']}")
 
-    # Step 3: Refresh Evidence sources
-    print("\nStep 3: Refreshing Evidence sources...")
+    # Step 4: Refresh Evidence sources
+    print("\nStep 4: Refreshing Evidence sources...")
     sources_status = refresh_evidence_sources()
     print(f"Evidence sources: {sources_status}")
 
-    # Step 4: Build Evidence site
-    print("\nStep 4: Building Evidence site...")
+    # Step 5: Build Evidence site
+    print("\nStep 5: Building Evidence site...")
     build_status = build_evidence()
     print(f"Evidence build: {build_status}")
 
-    # Step 5: Deploy to R2
-    print("\nStep 5: Deploying to R2...")
+    # Step 6: Deploy to R2
+    print("\nStep 6: Deploying to R2...")
     deploy_status = deploy_to_r2(aws_credentials_block=r2_credentials_block)
     print(f"R2 deployment: {deploy_status}")
 
-    # Step 6: Cleanup old files from MinIO bucket
-    print(f"\nStep 6: Cleaning up files older than {retention_days} days from MinIO bucket...")
+    # Step 7: Cleanup old files from MinIO bucket
+    print(f"\nStep 7: Cleaning up files older than {retention_days} days from MinIO bucket...")
     cleanup_result = cleanup_old_files(
         aws_credentials_block=minio_credentials_block,
         retention_days=retention_days
@@ -602,6 +700,7 @@ def ipfix_pipeline(retention_days: int = 5,
     return {
         "validation": validation_result,
         "evidence_init": init_status,
+        "duckdb_secrets": secrets_result,
         "dbt_status": "success",
         "evidence_sources": sources_status,
         "evidence_build": build_status,

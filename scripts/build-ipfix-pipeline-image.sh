@@ -1,0 +1,54 @@
+#!/bin/bash
+# build-image.sh
+set -euo pipefail
+
+# Configuration
+IMAGE_REGISTRY="cr.nrtn.dev/sandbox"
+IMAGE_NAME="ipfix-pipeline-worker"
+PLATFORMS="linux/amd64,linux/arm64"
+BUILDER_NAME="multiarch"
+
+# Get version info
+GIT_SHA=$(git rev-parse --short HEAD)
+GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+FULL_IMAGE="$IMAGE_REGISTRY/$IMAGE_NAME"
+
+echo "================================================"
+echo "Building Multi-Platform Docker Image"
+echo "================================================"
+echo "Image: $FULL_IMAGE"
+echo "SHA: $GIT_SHA"
+echo "Branch: $GIT_BRANCH"
+echo "Platforms: $PLATFORMS"
+echo "================================================"
+
+# Setup buildx
+if ! docker buildx inspect "$BUILDER_NAME" >/dev/null 2>&1; then
+  echo "Creating buildx builder: $BUILDER_NAME"
+  docker buildx create --name "$BUILDER_NAME" --driver docker-container
+else
+  echo "Using existing buildx builder: $BUILDER_NAME"
+fi
+
+docker buildx use "$BUILDER_NAME"
+docker buildx inspect --bootstrap
+
+# Build and push
+echo "Building and pushing..."
+docker buildx build \
+  --platform "$PLATFORMS" \
+  --tag "$FULL_IMAGE:$GIT_SHA" \
+  --tag "$FULL_IMAGE:$GIT_BRANCH" \
+  --tag "$FULL_IMAGE:latest" \
+  --push \
+  --load \
+  --progress=plain \
+  .
+
+echo ""
+echo "✅ Build complete!"
+echo "Tags pushed:"
+echo "  • $FULL_IMAGE:$GIT_SHA"
+echo "  • $FULL_IMAGE:$GIT_BRANCH"
+echo "  • $FULL_IMAGE:latest"
+echo ""
