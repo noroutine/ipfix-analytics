@@ -3,6 +3,7 @@ import subprocess
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from prefect_aws import AwsCredentials
+import os
 
 @task(name="Run dbt build", retries=2)
 def run_dbt_build() -> dict:
@@ -130,38 +131,82 @@ def build_evidence() -> str:
     return "build completed"
 
 @task(name="Deploy to R2", retries=2)
-def deploy_to_r2() -> str:
+def deploy_to_r2(aws_credentials_block: str,
+                 bucket_name: str = "ipfix-analytics") -> str:
     """
     Deploy Evidence build directory to Cloudflare R2 using rclone.
+    Credentials are loaded from Prefect block and used to configure rclone on-the-fly.
+
+    Args:
+        aws_credentials_block: Name of the Prefect AwsCredentials block for R2 access
+        bucket_name: Name of the R2 bucket (default: "ipfix-analytics")
+
+    Returns:
+        Status string
     """
     logger = get_run_logger()
     evidence_dir = Path(__file__).parent / "evidence"
     build_dir = evidence_dir / "build"
 
-    logger.info(f"Deploying {build_dir} to R2...")
+    if not build_dir.exists():
+        raise FileNotFoundError(f"Build directory not found: {build_dir}")
 
-    # rclone copy with good options:
-    # -v = verbose output
-    # --progress = show progress during transfer
-    # --stats 10s = show stats every 10 seconds
-    # --checksum = use checksums instead of mod-time & size
-    # --exclude .DS_Store = skip macOS metadata files
+    logger.info(f"Deploying {build_dir} to R2 bucket '{bucket_name}'...")
+
+    # Load R2 credentials from Prefect block
+    logger.info(f"Loading R2 credentials from block: {aws_credentials_block}")
+    aws_credentials = AwsCredentials.load(aws_credentials_block)
+
+    # Get endpoint configuration
+    endpoint_url = None
+    if aws_credentials.aws_client_parameters:
+        client_params = aws_credentials.aws_client_parameters.model_dump()
+        endpoint_url = client_params.get("endpoint_url")
+
+    logger.info(f"R2 endpoint: {endpoint_url}")
+
+    # Get credentials from block
+    access_key_id = aws_credentials.aws_access_key_id
+    secret_access_key = aws_credentials.aws_secret_access_key
+
+    # Handle SecretStr objects if they are used
+    if hasattr(access_key_id, 'get_secret_value'):
+        access_key_id = access_key_id.get_secret_value()
+    if hasattr(secret_access_key, 'get_secret_value'):
+        secret_access_key = secret_access_key.get_secret_value()
+
+    if not access_key_id or not secret_access_key:
+        raise ValueError("Missing access key or secret key in credentials block")
+
+    # Configure rclone via environment variables
+    # This creates a temporary "r2" remote configuration for this process
+    rclone_env = os.environ.copy()
+    rclone_env['RCLONE_CONFIG_R2_TYPE'] = 's3'
+    rclone_env['RCLONE_CONFIG_R2_PROVIDER'] = 'Cloudflare'
+    rclone_env['RCLONE_CONFIG_R2_ACCESS_KEY_ID'] = access_key_id
+    rclone_env['RCLONE_CONFIG_R2_SECRET_ACCESS_KEY'] = secret_access_key
+    rclone_env['RCLONE_CONFIG_R2_ENDPOINT'] = endpoint_url
+    rclone_env['RCLONE_CONFIG_R2_ACL'] = 'public-read'  # For public website hosting
+
+    logger.info("Configured rclone with credentials from Prefect block")
+
+    # Run rclone copy with the configured environment
     process = subprocess.Popen(
         [
-            "rclone", "copy",
+            "rclone", "sync",
             "build/",
-            "r2:ipfix-analytics",
+            f"r2:{bucket_name}",
             "-v",
             "--progress",
             "--stats", "10s",
-            "--checksum",
-            "--exclude", ".DS_Store"
+            "--checksum"
         ],
         cwd=evidence_dir,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
-        bufsize=1
+        bufsize=1,
+        env=rclone_env
     )
 
     # Stream output
@@ -292,7 +337,8 @@ def cleanup_old_files(aws_credentials_block: str,
 
 @flow(name="IPFIX Analytics Pipeline", log_prints=True)
 def ipfix_pipeline(retention_days: int = 5,
-                   aws_credentials_block: str = "minio-credentials"):
+                   minio_credentials_block: str = "minio-ipfix-credentials",
+                   r2_credentials_block: str = "r2-ipfix-analytics-credentials"):
     """
     Main pipeline that:
     1. Runs dbt build to materialize staging and mart models to DuckDB
@@ -303,7 +349,8 @@ def ipfix_pipeline(retention_days: int = 5,
 
     Args:
         retention_days: Number of days to retain parquet files in MinIO bucket (default: 5)
-        aws_credentials_block: Name of the Prefect AwsCredentials block for MinIO access (default: "minio-credentials")
+        minio_credentials_block: Name of the Prefect AwsCredentials block for MinIO access (default: "minio-ipfix-credentials")
+        r2_credentials_block: Name of the Prefect AwsCredentials block for R2 access (default: "r2-ipfix-analytics-credentials")
     """
 
     print("Starting IPFIX Analytics Pipeline...")
@@ -325,13 +372,13 @@ def ipfix_pipeline(retention_days: int = 5,
 
     # Step 4: Deploy to R2
     print("Step 4: Deploying to R2...")
-    deploy_status = deploy_to_r2()
+    deploy_status = deploy_to_r2(aws_credentials_block=r2_credentials_block)
     print(f"R2 deployment: {deploy_status}")
 
     # Step 5: Cleanup old files from MinIO bucket
     print(f"Step 5: Cleaning up files older than {retention_days} days from MinIO bucket...")
     cleanup_result = cleanup_old_files(
-        aws_credentials_block=aws_credentials_block,
+        aws_credentials_block=minio_credentials_block,
         retention_days=retention_days
     )
     print(f"Cleanup completed: {cleanup_result['files_deleted']} files deleted, {cleanup_result['bytes_freed'] / (1024**2):.2f} MB freed")

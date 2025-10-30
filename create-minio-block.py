@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Interactive script to create a Prefect AwsCredentials block for MinIO.
-This stores your MinIO credentials securely in Prefect for use by the pipeline.
+Interactive script to create a Prefect AwsCredentials block for S3/MinIO.
+This stores your S3 credentials securely in Prefect for use by the pipeline.
 """
 
 from prefect_aws import AwsCredentials
@@ -11,16 +11,16 @@ import getpass
 MINIO_ENDPOINT = "https://s3.noroutine.me"
 
 print("=" * 60)
-print("MinIO Credentials Block Setup")
+print("S3 Credentials Block Setup")
 print("=" * 60)
 print("\nThis script will create a Prefect block to store your MinIO credentials.")
 print("The credentials will be encrypted and stored securely by Prefect.\n")
 
 # Get credentials interactively
 block_name = input("Block name [minio-credentials]: ").strip() or "minio-credentials"
-endpoint = input(f"MinIO Endpoint [{MINIO_ENDPOINT}]: ").strip() or MINIO_ENDPOINT
-access_key = input("MinIO Access Key ID: ").strip()
-secret_key = getpass.getpass("MinIO Secret Access Key: ")
+endpoint = input(f"S3 Endpoint [{MINIO_ENDPOINT}]: ").strip() or MINIO_ENDPOINT
+access_key = input("S3 Access Key ID: ").strip()
+secret_key = getpass.getpass("S3 Secret Access Key: ")
 
 if not access_key or not secret_key:
     print("\nError: Both access key and secret key are required!")

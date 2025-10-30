@@ -31,7 +31,8 @@ deployments:
   entrypoint: ipfix_pipeline.py:ipfix_pipeline
   parameters:
     retention_days: 5
-    aws_credentials_block: minio-credentials
+    minio_credentials_block: minio-ipfix-credentials
+    r2_credentials_block: r2-ipfix-analytics-credentials
   work_pool:
     name: local-workerpool
     work_queue_name: null
