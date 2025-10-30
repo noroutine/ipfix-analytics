@@ -15,6 +15,7 @@ dependencies = [
     "minio>=7.2.7",
     "pandas>=2.0.3",
     "prefect>=2.20.23",
+    "prefect-aws>=0.4.20",
     "pyarrow>=17.0.0",
     "python-dotenv>=1.0.1",
 ]

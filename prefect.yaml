@@ -16,6 +16,24 @@ push: null
 pull:
 - prefect.deployments.steps.set_working_directory:
     directory: /Users/okhilkevych/noroutine/sandbox/ipfix-big-data
+# - prefect.deployments.steps.git_clone:
+#     repository: ssh://git@nrtn.dev/noroutine/ipfix-analytics.git
+#     branch: master
 
 # the deployments section allows you to provide configuration for deploying flows
-deployments: []
+deployments:
+- name: ipfix-analytics-deployment
+  version: null
+  tags: []
+  description: IPFIX Analytics Pipeline - dbt, Evidence, and R2 deployment
+  schedule: null
+  flow_name: null
+  entrypoint: ipfix_pipeline.py:ipfix_pipeline
+  parameters:
+    retention_days: 5
+    aws_credentials_block: minio-credentials
+  work_pool:
+    name: local-workerpool
+    work_queue_name: null
+    job_variables: {}
+  enforce_parameter_schema: true

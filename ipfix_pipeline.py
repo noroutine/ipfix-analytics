@@ -1,6 +1,8 @@
 from prefect import flow, task, get_run_logger
 import subprocess
 from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from prefect_aws import AwsCredentials
 
 @task(name="Run dbt build", retries=2)
 def run_dbt_build() -> dict:
@@ -183,14 +185,125 @@ def deploy_to_r2() -> str:
     logger.info("Deployment to R2 completed successfully!")
     return "deployed to R2"
 
+@task(name="Cleanup old bucket files", retries=1)
+def cleanup_old_files(aws_credentials_block: str,
+                      bucket_name: str = "ipfix",
+                      prefix: str = "ipfix_",
+                      retention_days: int = 5) -> dict:
+    """
+    Clean up parquet files older than retention_days from MinIO bucket.
+    Only files matching the prefix pattern will be considered for deletion.
+
+    Args:
+        aws_credentials_block: Name of the Prefect AwsCredentials block to use
+        bucket_name: Name of the S3/MinIO bucket (default: "ipfix")
+        prefix: File prefix pattern to match (default: "ipfix_")
+        retention_days: Number of days to retain files (default: 5)
+
+    Returns:
+        Dictionary with cleanup statistics
+    """
+    logger = get_run_logger()
+
+    # Calculate cutoff date
+    cutoff_date = datetime.now(timezone.utc) - timedelta(days=retention_days)
+    logger.info(f"Cleaning up files older than {cutoff_date.isoformat()} ({retention_days} days)")
+
+    # Load credentials from Prefect block
+    logger.info(f"Loading credentials from block: {aws_credentials_block}")
+    aws_credentials = AwsCredentials.load(aws_credentials_block)
+
+    # Get the endpoint URL from the credentials block
+    # aws_client_parameters is a Pydantic model, convert to dict
+    endpoint_url = None
+    if aws_credentials.aws_client_parameters:
+        client_params = aws_credentials.aws_client_parameters.model_dump()
+        endpoint_url = client_params.get("endpoint_url")
+    logger.info(f"Block endpoint: {endpoint_url}")
+    logger.info(f"Block region: {aws_credentials.region_name}")
+
+    # Initialize S3 client with credentials from block
+    # We need to pass the endpoint_url explicitly to the client
+    boto3_session = aws_credentials.get_boto3_session()
+    s3_client = boto3_session.client(
+        's3',
+        endpoint_url=endpoint_url
+    )
+
+    # Log what boto3 is actually using
+    logger.info(f"Boto3 client endpoint: {s3_client.meta.endpoint_url}")
+    logger.info(f"Boto3 client region: {s3_client.meta.region_name}")
+
+    try:
+        # List all objects in bucket with the specified prefix
+        logger.info(f"Listing objects in bucket '{bucket_name}' with prefix '{prefix}'...")
+        response = s3_client.list_objects_v2(Bucket=bucket_name, Prefix=prefix)
+
+        if 'Contents' not in response:
+            logger.info(f"No files found with prefix '{prefix}' in bucket '{bucket_name}'")
+            return {
+                "files_checked": 0,
+                "files_deleted": 0,
+                "bytes_freed": 0,
+                "retention_days": retention_days
+            }
+
+        files_to_delete = []
+        total_size = 0
+
+        # Check each file's modification date
+        for obj in response['Contents']:
+            file_key = obj['Key']
+            last_modified = obj['LastModified']
+            file_size = obj['Size']
+
+            if last_modified < cutoff_date:
+                files_to_delete.append(file_key)
+                total_size += file_size
+                logger.info(f"Marking for deletion: {file_key} (modified: {last_modified.isoformat()}, size: {file_size} bytes)")
+
+        # Delete old files
+        deleted_count = 0
+        if files_to_delete:
+            logger.info(f"Deleting {len(files_to_delete)} old file(s)...")
+            for file_key in files_to_delete:
+                try:
+                    s3_client.delete_object(Bucket=bucket_name, Key=file_key)
+                    logger.info(f"Deleted: {file_key}")
+                    deleted_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to delete {file_key}: {str(e)}")
+        else:
+            logger.info(f"No files older than {retention_days} days found. Nothing to delete.")
+
+        result = {
+            "files_checked": len(response['Contents']),
+            "files_deleted": deleted_count,
+            "bytes_freed": total_size,
+            "retention_days": retention_days
+        }
+
+        logger.info(f"Cleanup completed: {deleted_count} files deleted, {total_size / (1024**2):.2f} MB freed")
+        return result
+
+    except Exception as e:
+        logger.error(f"Error during bucket cleanup: {str(e)}")
+        raise
+
 @flow(name="IPFIX Analytics Pipeline", log_prints=True)
-def ipfix_pipeline():
+def ipfix_pipeline(retention_days: int = 5,
+                   aws_credentials_block: str = "minio-credentials"):
     """
     Main pipeline that:
     1. Runs dbt build to materialize staging and mart models to DuckDB
     2. Refreshes Evidence sources (runs queries against updated DuckDB)
     3. Builds Evidence static site
     4. Deploys build to Cloudflare R2
+    5. Cleans up old parquet files from MinIO bucket (only if all previous steps succeed)
+
+    Args:
+        retention_days: Number of days to retain parquet files in MinIO bucket (default: 5)
+        aws_credentials_block: Name of the Prefect AwsCredentials block for MinIO access (default: "minio-credentials")
     """
 
     print("Starting IPFIX Analytics Pipeline...")
@@ -215,13 +328,22 @@ def ipfix_pipeline():
     deploy_status = deploy_to_r2()
     print(f"R2 deployment: {deploy_status}")
 
+    # Step 5: Cleanup old files from MinIO bucket
+    print(f"Step 5: Cleaning up files older than {retention_days} days from MinIO bucket...")
+    cleanup_result = cleanup_old_files(
+        aws_credentials_block=aws_credentials_block,
+        retention_days=retention_days
+    )
+    print(f"Cleanup completed: {cleanup_result['files_deleted']} files deleted, {cleanup_result['bytes_freed'] / (1024**2):.2f} MB freed")
+
     print("Pipeline completed successfully!")
 
     return {
         "dbt_status": "success",
         "evidence_sources": sources_status,
         "evidence_build": build_status,
-        "r2_deploy": deploy_status
+        "r2_deploy": deploy_status,
+        "cleanup": cleanup_result
     }
 
 
