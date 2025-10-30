@@ -4,6 +4,202 @@ from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from prefect_aws import AwsCredentials
 import os
+import shutil
+
+@task(name="Validate environment", retries=0)
+def validate_environment(minio_credentials_block: str,
+                         r2_credentials_block: str,
+                         minio_bucket: str = "ipfix",
+                         r2_bucket: str = "ipfix-analytics") -> dict:
+    """
+    Validate that all required tools and credentials are available and working.
+    This step fails fast if anything is missing or misconfigured.
+
+    Args:
+        minio_credentials_block: Name of the MinIO credentials block
+        r2_credentials_block: Name of the R2 credentials block
+        minio_bucket: MinIO bucket name to test
+        r2_bucket: R2 bucket name to test
+
+    Returns:
+        Dictionary with validation results
+    """
+    logger = get_run_logger()
+    validation_results = {}
+    errors = []
+
+    logger.info("Starting environment validation...")
+
+    # Check required command-line tools
+    required_tools = ['rclone', 'node', 'npm', 'dbt']
+    for tool in required_tools:
+        tool_path = shutil.which(tool)
+        if tool_path:
+            logger.info(f"✓ {tool} found at: {tool_path}")
+            validation_results[f"{tool}_installed"] = True
+            validation_results[f"{tool}_path"] = tool_path
+        else:
+            error = f"✗ {tool} not found in PATH"
+            logger.error(error)
+            errors.append(error)
+            validation_results[f"{tool}_installed"] = False
+
+    # Check directory structure
+    base_dir = Path(__file__).parent
+    required_dirs = {
+        'dbt': base_dir / "dbt",
+        'evidence': base_dir / "evidence",
+        'evidence_build': base_dir / "evidence" / "build"
+    }
+
+    for name, dir_path in required_dirs.items():
+        if dir_path.exists():
+            logger.info(f"✓ Directory exists: {dir_path}")
+            validation_results[f"dir_{name}"] = True
+        else:
+            if name == 'evidence_build':
+                # Build directory is expected to not exist initially, just log
+                logger.info(f"ℹ Build directory will be created: {dir_path}")
+                validation_results[f"dir_{name}"] = False
+            else:
+                error = f"✗ Required directory missing: {dir_path}"
+                logger.error(error)
+                errors.append(error)
+                validation_results[f"dir_{name}"] = False
+
+    # Validate MinIO credentials
+    logger.info(f"Validating MinIO credentials block: {minio_credentials_block}")
+    try:
+        minio_creds = AwsCredentials.load(minio_credentials_block)
+
+        # Get endpoint
+        endpoint_url = None
+        if minio_creds.aws_client_parameters:
+            client_params = minio_creds.aws_client_parameters.model_dump()
+            endpoint_url = client_params.get("endpoint_url")
+
+        logger.info(f"  MinIO endpoint: {endpoint_url}")
+
+        # Test connection
+        boto3_session = minio_creds.get_boto3_session()
+        s3_client = boto3_session.client('s3', endpoint_url=endpoint_url)
+        s3_client.list_objects_v2(Bucket=minio_bucket, MaxKeys=1)
+
+        logger.info(f"✓ MinIO credentials valid, bucket '{minio_bucket}' accessible")
+        validation_results["minio_credentials"] = True
+    except Exception as e:
+        error = f"✗ MinIO credentials test failed: {str(e)}"
+        logger.error(error)
+        errors.append(error)
+        validation_results["minio_credentials"] = False
+
+    # Validate R2 credentials
+    logger.info(f"Validating R2 credentials block: {r2_credentials_block}")
+    try:
+        r2_creds = AwsCredentials.load(r2_credentials_block)
+
+        # Get endpoint
+        endpoint_url = None
+        if r2_creds.aws_client_parameters:
+            client_params = r2_creds.aws_client_parameters.model_dump()
+            endpoint_url = client_params.get("endpoint_url")
+
+        logger.info(f"  R2 endpoint: {endpoint_url}")
+
+        # Test connection
+        boto3_session = r2_creds.get_boto3_session()
+        s3_client = boto3_session.client('s3', endpoint_url=endpoint_url)
+        s3_client.list_objects_v2(Bucket=r2_bucket, MaxKeys=1)
+
+        logger.info(f"✓ R2 credentials valid, bucket '{r2_bucket}' accessible")
+        validation_results["r2_credentials"] = True
+    except Exception as e:
+        error = f"✗ R2 credentials test failed: {str(e)}"
+        logger.error(error)
+        errors.append(error)
+        validation_results["r2_credentials"] = False
+
+    # Check Node.js and npm versions
+    if validation_results.get("node_installed"):
+        try:
+            node_version = subprocess.check_output(["node", "--version"], text=True).strip()
+            logger.info(f"  Node.js version: {node_version}")
+            validation_results["node_version"] = node_version
+        except Exception as e:
+            logger.warning(f"Could not get Node.js version: {e}")
+
+    if validation_results.get("npm_installed"):
+        try:
+            npm_version = subprocess.check_output(["npm", "--version"], text=True).strip()
+            logger.info(f"  npm version: {npm_version}")
+            validation_results["npm_version"] = npm_version
+        except Exception as e:
+            logger.warning(f"Could not get npm version: {e}")
+
+    # Summary
+    if errors:
+        logger.error(f"\n{'='*60}")
+        logger.error(f"Validation FAILED with {len(errors)} error(s):")
+        for error in errors:
+            logger.error(f"  {error}")
+        logger.error(f"{'='*60}")
+        raise RuntimeError(f"Environment validation failed: {len(errors)} error(s) found")
+
+    logger.info(f"\n{'='*60}")
+    logger.info("✓ All validation checks passed!")
+    logger.info(f"{'='*60}")
+
+    return validation_results
+
+@task(name="Initialize Evidence", retries=0)
+def init_evidence() -> str:
+    """
+    Initialize Evidence by running npm install if needed.
+    This ensures all dependencies are available for the build.
+
+    Returns:
+        Status string
+    """
+    logger = get_run_logger()
+    evidence_dir = Path(__file__).parent / "evidence"
+    package_json = evidence_dir / "package.json"
+
+    if not package_json.exists():
+        logger.warning("No package.json found, skipping npm install")
+        return "skipped - no package.json"
+
+    # Always run npm install to ensure dependencies are up to date
+    logger.info("Running npm install to ensure dependencies are current...")
+
+    process = subprocess.Popen(
+        ["npm", "install"],
+        cwd=evidence_dir,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        text=True,
+        bufsize=1
+    )
+
+    # Stream output
+    output_lines = []
+    for line in process.stdout:
+        line = line.rstrip()
+        logger.info(line)
+        output_lines.append(line)
+
+    process.wait()
+
+    if process.returncode != 0:
+        error_msg = f"npm install failed with return code {process.returncode}"
+        logger.error(error_msg)
+        raise subprocess.CalledProcessError(
+            process.returncode,
+            ["npm", "install"],
+            output="\n".join(output_lines)
+        )
+
+    logger.info("Evidence dependencies initialized successfully!")
+    return "initialized"
 
 @task(name="Run dbt build", retries=2)
 def run_dbt_build() -> dict:
@@ -341,11 +537,13 @@ def ipfix_pipeline(retention_days: int = 5,
                    r2_credentials_block: str = "r2-ipfix-analytics-credentials"):
     """
     Main pipeline that:
-    1. Runs dbt build to materialize staging and mart models to DuckDB
-    2. Refreshes Evidence sources (runs queries against updated DuckDB)
-    3. Builds Evidence static site
-    4. Deploys build to Cloudflare R2
-    5. Cleans up old parquet files from MinIO bucket (only if all previous steps succeed)
+    0. Validates environment (tools, credentials, directories)
+    1. Initializes Evidence dependencies (npm install)
+    2. Runs dbt build to materialize staging and mart models to DuckDB
+    3. Refreshes Evidence sources (runs queries against updated DuckDB)
+    4. Builds Evidence static site
+    5. Deploys build to Cloudflare R2
+    6. Cleans up old parquet files from MinIO bucket (only if all previous steps succeed)
 
     Args:
         retention_days: Number of days to retain parquet files in MinIO bucket (default: 5)
@@ -354,41 +552,56 @@ def ipfix_pipeline(retention_days: int = 5,
     """
 
     print("Starting IPFIX Analytics Pipeline...")
+    print(f"Working directory: {os.getcwd()}")
 
-    print(f"Current directory: {os.getcwd()}")
-    print(f"Files here: {os.listdir('.')}")
+    # Step 0: Validate environment
+    print("\nStep 0: Validating environment...")
+    validation_result = validate_environment(
+        minio_credentials_block=minio_credentials_block,
+        r2_credentials_block=r2_credentials_block
+    )
+    print(f"✓ Environment validation passed")
 
-    # Step 1: Run dbt build
-    print("Step 1: Running dbt build...")
+    # Step 1: Initialize Evidence dependencies
+    print("\nStep 1: Initializing Evidence...")
+    init_status = init_evidence()
+    print(f"Evidence initialization: {init_status}")
+
+    # Step 2: Run dbt build
+    print("\nStep 2: Running dbt build...")
     dbt_result = run_dbt_build()
     print(f"dbt build completed with return code: {dbt_result['returncode']}")
 
-    # Step 2: Refresh Evidence sources
-    print("Step 2: Refreshing Evidence sources...")
+    # Step 3: Refresh Evidence sources
+    print("\nStep 3: Refreshing Evidence sources...")
     sources_status = refresh_evidence_sources()
     print(f"Evidence sources: {sources_status}")
 
-    # Step 3: Build Evidence site
-    print("Step 3: Building Evidence site...")
+    # Step 4: Build Evidence site
+    print("\nStep 4: Building Evidence site...")
     build_status = build_evidence()
     print(f"Evidence build: {build_status}")
 
-    # Step 4: Deploy to R2
-    print("Step 4: Deploying to R2...")
+    # Step 5: Deploy to R2
+    print("\nStep 5: Deploying to R2...")
     deploy_status = deploy_to_r2(aws_credentials_block=r2_credentials_block)
     print(f"R2 deployment: {deploy_status}")
 
-    # Step 5: Cleanup old files from MinIO bucket
-    print(f"Step 5: Cleaning up files older than {retention_days} days from MinIO bucket...")
+    # Step 6: Cleanup old files from MinIO bucket
+    print(f"\nStep 6: Cleaning up files older than {retention_days} days from MinIO bucket...")
     cleanup_result = cleanup_old_files(
         aws_credentials_block=minio_credentials_block,
         retention_days=retention_days
     )
     print(f"Cleanup completed: {cleanup_result['files_deleted']} files deleted, {cleanup_result['bytes_freed'] / (1024**2):.2f} MB freed")
 
+    print("\n" + "="*60)
     print("Pipeline completed successfully!")
+    print("="*60)
 
     return {
+        "validation": validation_result,
+        "evidence_init": init_status,
         "dbt_status": "success",
         "evidence_sources": sources_status,
         "evidence_build": build_status,

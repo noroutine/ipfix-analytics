@@ -10,3 +10,6 @@ wheels/
 .venv
 
 *.duckdb
+
+# Prefect work pool directory
+.local-workerpool/
