@@ -13,6 +13,9 @@ GIT_SHA=$(git rev-parse --short HEAD)
 GIT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 FULL_IMAGE="$IMAGE_REGISTRY/$IMAGE_NAME"
 
+# Allow custom tag override (e.g., for specific commit or version)
+CUSTOM_TAG="${1:-}"
+
 echo "================================================"
 echo "Building Multi-Platform Docker Image"
 echo "================================================"
@@ -20,6 +23,9 @@ echo "Image: $FULL_IMAGE"
 echo "SHA: $GIT_SHA"
 echo "Branch: $GIT_BRANCH"
 echo "Platforms: $PLATFORMS"
+if [ -n "$CUSTOM_TAG" ]; then
+  echo "Custom tag: $CUSTOM_TAG"
+fi
 echo "================================================"
 
 # Setup buildx
@@ -35,11 +41,22 @@ docker buildx inspect --bootstrap
 
 # Build and push
 echo "Building and pushing..."
+
+# Build tag arguments
+TAG_ARGS=(
+  --tag "$FULL_IMAGE:$GIT_SHA"
+  --tag "$FULL_IMAGE:$GIT_BRANCH"
+  --tag "$FULL_IMAGE:latest"
+)
+
+# Add custom tag if provided
+if [ -n "$CUSTOM_TAG" ]; then
+  TAG_ARGS+=(--tag "$FULL_IMAGE:$CUSTOM_TAG")
+fi
+
 docker buildx build \
   --platform "$PLATFORMS" \
-  --tag "$FULL_IMAGE:$GIT_SHA" \
-  --tag "$FULL_IMAGE:$GIT_BRANCH" \
-  --tag "$FULL_IMAGE:latest" \
+  "${TAG_ARGS[@]}" \
   --push \
   --load \
   --progress=plain \
@@ -51,4 +68,7 @@ echo "Tags pushed:"
 echo "  • $FULL_IMAGE:$GIT_SHA"
 echo "  • $FULL_IMAGE:$GIT_BRANCH"
 echo "  • $FULL_IMAGE:latest"
+if [ -n "$CUSTOM_TAG" ]; then
+  echo "  • $FULL_IMAGE:$CUSTOM_TAG"
+fi
 echo ""

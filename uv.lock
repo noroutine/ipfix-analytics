@@ -3868,6 +3868,8 @@ source = { virtual = "." }
 dependencies = [
     { name = "boto3", version = "1.37.38", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "boto3", version = "1.40.55", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
+    { name = "clickhouse-connect", version = "0.9.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
+    { name = "clickhouse-connect", version = "0.9.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "dbt-clickhouse", version = "1.8.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
     { name = "dbt-clickhouse", version = "1.9.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.9'" },
     { name = "dbt-core", version = "1.8.7", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.9'" },
@@ -3899,6 +3901,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.37.38" },
+    { name = "clickhouse-connect", specifier = ">=0.7.0" },
     { name = "dbt-clickhouse", specifier = ">=1.8.6" },
     { name = "dbt-core", specifier = ">=1.8.7" },
     { name = "dbt-duckdb", specifier = ">=1.9.0" },

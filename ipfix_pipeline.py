@@ -622,7 +622,7 @@ def cleanup_old_files(aws_credentials_block: str,
         logger.error(f"Error during bucket cleanup: {str(e)}")
         raise
 
-@flow(name="IPFIX Analytics Pipeline", log_prints=True)
+@flow(name="IPFIX Analytics", log_prints=True)
 def ipfix_pipeline(retention_days: int = 5,
                    minio_credentials_block: str = "minio-ipfix-credentials",
                    r2_credentials_block: str = "r2-ipfix-analytics-credentials"):

@@ -5,10 +5,10 @@
 export PREFECT_API_URL=https://prefect.noroutine.me/api
 
 # Run local worker pool
-uv run prefect worker start --pool ws-mac-00055-local-process
+uv run prefect worker start --pool ws-mac-00055-local-process --name $(hostname -s)
 
 # Run docker worker pool
-uv run prefect worker start --pool ws-mac-00055-docker
+uv run prefect worker start --pool ws-mac-00055-docker --name $(hostname -s)
 ```
 
 ```bash

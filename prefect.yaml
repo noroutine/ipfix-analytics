@@ -7,7 +7,11 @@ name: ipfix-big-data
 prefect-version: 3.4.24
 
 # build section allows you to manage and build docker images
-build: null
+build:
+  - prefect.deployments.steps.run_shell_script:
+      id: get-commit-hash
+      script: git rev-parse --short HEAD
+      stream_output: false
 
 # push section allows you to manage if and how this project is uploaded to remote locations
 push: null
@@ -23,8 +27,11 @@ pull: null
 # the deployments section allows you to provide configuration for deploying flows
 deployments:
   - name: ipfix-analytics-local-dev
-    version: null
-    tags: []
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - dev
+      - local
+      - analytics
     description: IPFIX Analytics Pipeline - dbt, Evidence, and R2 deployment
     schedules: []
     # schedules:
@@ -46,8 +53,11 @@ deployments:
     enforce_parameter_schema: true
 
   - name: ipfix-analytics-docker-dev
-    version: null
-    tags: []
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - dev
+      - docker
+      - analytics
     description: IPFIX Analytics Pipeline - dbt, Evidence, and R2 deployment
     # schedule: null
     schedules: []
@@ -57,25 +67,25 @@ deployments:
       retention_days: 5
       minio_credentials_block: minio-ipfix-credentials
       r2_credentials_block: r2-ipfix-analytics-credentials
-    build:
-      - prefect.deployments.steps.run_shell_script:
-          id: push-multiarch-image
-          script: bash scripts/build-ipfix-pipeline-image.sh
-          stream_output: true
-      - prefect.deployments.steps.run_shell_script:
-          id: get-commit-hash
-          script: git rev-parse --short HEAD
-          stream_output: false
-      - prefect_docker.deployments.steps.build_docker_image:
-          id: build-image
-          requires: prefect-docker>=0.6.0
-          image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
-          tag: "{{ get-commit-hash.stdout }}"
-          dockerfile: Dockerfile
-      # - prefect_docker.deployments.steps.push_docker_image:
-      #     id: push-image
-      #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
-      #     tag: "{{ get-commit-hash.stdout }}"
+    # build:
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: push-multiarch-image
+    #     script: bash scripts/build-ipfix-pipeline-image.sh
+    #     stream_output: true
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: get-commit-hash
+    #     script: git rev-parse --short HEAD
+    #     stream_output: false
+    # - prefect_docker.deployments.steps.build_docker_image:
+    #     id: build-image
+    #     requires: prefect-docker>=0.6.0
+    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     tag: "{{ get-commit-hash.stdout }}"
+    #     dockerfile: Dockerfile
+    # - prefect_docker.deployments.steps.push_docker_image:
+    #     id: push-image
+    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     tag: "{{ get-commit-hash.stdout }}"
     pull:
       - prefect.deployments.steps.run_shell_script:
           script: python /scripts/setup-ssh.py
@@ -91,8 +101,11 @@ deployments:
     enforce_parameter_schema: true
 
   - name: ipfix-analytics
-    version: null
-    tags: []
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - production
+      - analytics
+      - scheduled
     description: IPFIX Analytics Pipeline - dbt, Evidence, and R2 deployment
     # schedule: null
     schedules:
@@ -103,25 +116,142 @@ deployments:
       retention_days: 5
       minio_credentials_block: minio-ipfix-credentials
       r2_credentials_block: r2-ipfix-analytics-credentials
-    build:
+    # build:
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: push-multiarch-image
+    #     script: bash scripts/build-ipfix-pipeline-image.sh
+    #     stream_output: true
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: get-commit-hash
+    #     script: git rev-parse --short HEAD
+    #     stream_output: false
+    # - prefect_docker.deployments.steps.build_docker_image:
+    #     id: build-image
+    #     requires: prefect-docker>=0.6.0
+    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     tag: "{{ get-commit-hash.stdout }}"
+    #     dockerfile: Dockerfile
+    # - prefect_docker.deployments.steps.push_docker_image:
+    #     id: push-image
+    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     tag: "{{ get-commit-hash.stdout }}"
+    pull:
       - prefect.deployments.steps.run_shell_script:
-          id: push-multiarch-image
-          script: bash scripts/build-ipfix-pipeline-image.sh
-          stream_output: true
+          script: python /scripts/setup-ssh.py
+      - prefect.deployments.steps.git_clone:
+          id: clone
+          repository: ssh://git@nrtn.dev/noroutine/ipfix-analytics.git
+          branch: master
+    work_pool:
+      name: bo01-runner-docker
+      work_queue_name: null
+      job_variables:
+        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+    enforce_parameter_schema: true
+
+  # ClickHouse Export Pipeline Deployments
+  - name: clickhouse-export-local-dev
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - dev
+      - local
+      - dry-run
+    description: ClickHouse IPFIX Export Pipeline - exports IPFIX data to MinIO parquet every 5 minutes (DRY RUN)
+    schedules: []
+    flow_name: null
+    entrypoint: clickhouse_export_pipeline.py:clickhouse_export_pipeline
+    parameters:
+      clickhouse_host: 10.1.7.12
+      clickhouse_port: 8123
+      clickhouse_user: default
+      clickhouse_password: ""
+      clickhouse_database: playground
+      minio_credentials_block: minio-ipfix-credentials
+      minio_bucket: ipfix
+      sql_script_path: scripts/ipfix-export.sql
+      dry_run: true # Safe default - only counts rows
+    pull:
+      - prefect.deployments.steps.set_working_directory:
+          id: "workerpool_directory"
+          directory: /Users/okhilkevych/noroutine/sandbox/ipfix-big-data
+    work_pool:
+      name: ws-mac-00055-local-process
+      work_queue_name: null
+      job_variables: {}
+    enforce_parameter_schema: true
+
+  - name: clickhouse-export-docker-dev
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - dev
+      - docker
+      - dry-run
+    description: ClickHouse IPFIX Export Pipeline - exports IPFIX data to MinIO parquet every 5 minutes (DRY RUN)
+    schedules: []
+    flow_name: null
+    entrypoint: clickhouse_export_pipeline.py:clickhouse_export_pipeline
+    parameters:
+      clickhouse_host: 10.1.7.12
+      clickhouse_port: 8123
+      clickhouse_user: default
+      clickhouse_password: ""
+      clickhouse_database: playground
+      minio_credentials_block: minio-ipfix-credentials
+      minio_bucket: ipfix
+      sql_script_path: scripts/ipfix-export.sql
+      dry_run: true # Safe default - only counts rows
+    # build:
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: get-commit-hash
+    #     script: git rev-parse --short HEAD
+    #     stream_output: false
+    # - prefect_docker.deployments.steps.build_docker_image:
+    #     id: build-image
+    #     requires: prefect-docker>=0.6.0
+    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     tag: "{{ get-commit-hash.stdout }}"
+    #     dockerfile: Dockerfile
+    pull:
       - prefect.deployments.steps.run_shell_script:
-          id: get-commit-hash
-          script: git rev-parse --short HEAD
-          stream_output: false
-      # - prefect_docker.deployments.steps.build_docker_image:
-      #     id: build-image
-      #     requires: prefect-docker>=0.6.0
-      #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
-      #     tag: "{{ get-commit-hash.stdout }}"
-      #     dockerfile: Dockerfile
-      # - prefect_docker.deployments.steps.push_docker_image:
-      #     id: push-image
-      #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
-      #     tag: "{{ get-commit-hash.stdout }}"
+          script: python /scripts/setup-ssh.py
+      - prefect.deployments.steps.git_clone:
+          id: clone
+          repository: ssh://git@nrtn.dev/noroutine/ipfix-analytics.git
+          branch: master
+    work_pool:
+      name: ws-mac-00055-docker
+      work_queue_name: null
+      job_variables:
+        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+    enforce_parameter_schema: true
+
+  - name: clickhouse-export
+    version: "{{ get-commit-hash.stdout }}"
+    tags:
+      - production
+      - clickhouse
+      - export
+      - scheduled
+    description: ClickHouse IPFIX Export Pipeline - exports IPFIX data to MinIO parquet every 5 minutes (LIVE)
+    schedules:
+      - interval: 300 # 5 minutes in seconds
+    flow_name: null
+    entrypoint: clickhouse_export_pipeline.py:clickhouse_export_pipeline
+    parameters:
+      clickhouse_host: 10.1.7.12
+      clickhouse_port: 8123
+      clickhouse_user: default
+      clickhouse_password: ""
+      clickhouse_database: playground
+      minio_credentials_block: minio-ipfix-credentials
+      minio_bucket: ipfix
+      sql_script_path: scripts/ipfix-export.sql
+      dry_run: false # Production mode - actually exports and deletes
+    # build:
+    # - prefect.deployments.steps.run_shell_script:
+    #     id: get-commit-hash
+    #     script: git rev-parse --short HEAD
+    #     stream_output: false
     pull:
       - prefect.deployments.steps.run_shell_script:
           script: python /scripts/setup-ssh.py
