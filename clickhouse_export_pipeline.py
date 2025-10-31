@@ -180,12 +180,28 @@ def execute_ipfix_export_script(
 
             try:
                 result = client.command(statement)
-                logger.info(f"✓ Statement {i} completed successfully")
+
+                # Extract useful info from QuerySummary if available
+                result_info = ""
+                if result and hasattr(result, 'written_rows'):
+                    # This is a QuerySummary object
+                    parts = []
+                    if result.written_rows > 0:
+                        parts.append(f"written={result.written_rows:,} rows")
+                    if hasattr(result, 'result_rows') and result.result_rows > 0:
+                        parts.append(f"result={result.result_rows:,} rows")
+                    if hasattr(result, 'elapsed') and result.elapsed > 0:
+                        parts.append(f"time={result.elapsed:.2f}s")
+
+                    result_info = ", ".join(parts) if parts else "ok"
+                    logger.info(f"✓ Statement {i}: {result_info}")
+                else:
+                    logger.info(f"✓ Statement {i} completed")
 
                 results.append({
                     "statement_number": i,
                     "preview": statement[:100],
-                    "result": str(result) if result else None,
+                    "result": result_info or "completed",
                     "status": "success"
                 })
             except Exception as e:
@@ -276,11 +292,14 @@ def clickhouse_export_pipeline(
     else:
         print(f"\n{result['statements_executed']} SQL statements executed successfully")
 
-        # Print results from each statement
+        # Print compact summary of statement results
         if 'results' in result:
+            print("\nStatement results:")
             for stmt_result in result['results']:
-                if stmt_result['result']:
-                    print(f"Statement {stmt_result['statement_number']}: {stmt_result['result']}")
+                if stmt_result.get('result') and stmt_result['result'] != "completed":
+                    print(f"  {stmt_result['statement_number']}: {stmt_result['result']}")
+                else:
+                    print(f"  {stmt_result['statement_number']}: ok")
 
     print("\n" + "="*60)
     print("Pipeline completed successfully!")

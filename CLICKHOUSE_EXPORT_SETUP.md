@@ -45,7 +45,7 @@ This approach is more efficient than downloading data through Python, as ClickHo
 - ❌ Does NOT export to MinIO
 - ❌ Does NOT delete any data
 
-### Output Example:
+### Output Example (Dry Run):
 ```
 DRY RUN MODE - Counting rows only
 Unexported rows (exported = 0): 1,234,567
@@ -54,6 +54,49 @@ Total rows: 1,234,567
 DRY RUN COMPLETE - No data was exported or deleted
 Set dry_run=False to actually export and delete
 ```
+
+### Output Example (Live Mode):
+```
+NORMAL MODE - Executing export script
+Parsed 11 SQL statements from script
+
+Executing statement 1/11
+✓ Statement 1: ok
+
+Executing statement 2/11
+✓ Statement 2: ok
+
+Executing statement 3/11
+✓ Statement 3: ok
+
+Executing statement 4/11
+✓ Statement 4: result=1 rows, time=0.05s
+
+Executing statement 5/11
+✓ Statement 5: written=44,106 rows, time=2.34s
+
+Executing statement 6/11
+✓ Statement 6: result=1 rows, time=0.02s
+
+...
+
+11 SQL statements executed successfully
+
+Statement results:
+  1: ok
+  2: ok
+  3: ok
+  4: result=1 rows, time=0.05s
+  5: written=44,106 rows, time=2.34s
+  6: result=1 rows, time=0.02s
+  ...
+```
+
+**Statement result format:**
+- `ok` - Statement executed successfully, no rows affected
+- `written=N rows` - Rows written/modified (e.g., ALTER UPDATE, DELETE)
+- `result=N rows` - Rows returned by query (e.g., SELECT)
+- `time=N.NNs` - Query execution time in seconds
 
 ### Disabling Dry Run:
 Set `dry_run: false` in deployment parameters to actually export data. Only the production deployment has this enabled by default.
