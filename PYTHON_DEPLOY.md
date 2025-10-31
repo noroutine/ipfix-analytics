@@ -185,38 +185,25 @@ def deploy_my_new_flow_production(dry_run: bool = False) -> Optional[str]:
         print("  [DRY RUN] Would deploy but skipping...")
         return None
 
-    deployment = Deployment.build_from_flow(
-        flow=my_flow_function,
+    # Prefect 3.x API: use flow.deploy() directly
+    deployment_id = my_flow_function.deploy(
         name="my-new-flow-production",
         version=commit_hash,
         description="My new flow for production",
         tags=["production", "my-flow", "scheduled"],
         work_pool_name="bo01-runner-docker",
+        job_variables={"image": image_name},
         parameters={
             "param1": os.getenv("PARAM1", "default"),
             "param2": int(os.getenv("PARAM2", "100"))
         },
-        schedule=IntervalSchedule(interval=timedelta(minutes=10)),
-        job_variables={"image": image_name},
-        pull=[
-            {
-                "prefect.deployments.steps.run_shell_script": {
-                    "script": "python /scripts/setup-ssh.py"
-                }
-            },
-            {
-                "prefect.deployments.steps.git_clone": {
-                    "id": "clone",
-                    "repository": "ssh://git@nrtn.dev/noroutine/ipfix-analytics.git",
-                    "branch": "master"
-                }
-            }
-        ]
+        cron="*/10 * * * *",  # Every 10 minutes
+        paused=False,
+        enforce_parameter_schema=True
     )
 
-    deployment_id = deployment.apply()
     print(f"✓ Deployed: {deployment_id}")
-    return deployment_id
+    return str(deployment_id)
 ```
 
 ### 2. Register in Deployment Registry
@@ -277,12 +264,15 @@ jobs:
 deploy:production:
   stage: deploy
   script:
-    - pip install prefect prefect-aws
+    - pip install -r requirements.txt
     - python deploy.py
   only:
     - master
   environment:
     name: production
+  variables:
+    PREFECT_API_URL: $PREFECT_API_URL
+    PREFECT_API_KEY: $PREFECT_API_KEY
 ```
 
 ## Comparison with YAML

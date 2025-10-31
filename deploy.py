@@ -21,8 +21,6 @@ import argparse
 import os
 import subprocess
 from typing import Optional
-from prefect.deployments import Deployment
-from prefect.server.schemas.schedules import IntervalSchedule
 from datetime import timedelta
 
 
@@ -76,14 +74,16 @@ def deploy_clickhouse_export_production(dry_run: bool = False) -> Optional[str]:
         print("  [DRY RUN] Would deploy but skipping...")
         return None
 
-    deployment = Deployment.build_from_flow(
-        flow=clickhouse_export_pipeline,
+    # Prefect 3.x API: use flow.deploy() instead of Deployment.build_from_flow()
+    deployment_id = clickhouse_export_pipeline.deploy(
         name="clickhouse-export-production",
         version=commit_hash,
         description="ClickHouse IPFIX Export Pipeline - exports IPFIX data to MinIO parquet every 5 minutes (LIVE)",
         tags=["production", "clickhouse", "export", "scheduled"],
         work_pool_name="bo01-runner-docker",
-        work_queue_name=None,
+        job_variables={
+            "image": image_name
+        },
         parameters={
             "clickhouse_host": os.getenv("CLICKHOUSE_HOST", "clickhouse"),
             "clickhouse_port": int(os.getenv("CLICKHOUSE_PORT", "8123")),
@@ -95,31 +95,13 @@ def deploy_clickhouse_export_production(dry_run: bool = False) -> Optional[str]:
             "sql_script_path": "scripts/ipfix-export.sql",
             "dry_run": False  # Production mode - actually exports and deletes
         },
-        schedule=IntervalSchedule(interval=timedelta(seconds=300)),  # 5 minutes
-        # Build step would go here if using build_from_flow with docker
-        # For now, assume image is pre-built
-        job_variables={
-            "image": image_name
-        },
-        pull=[
-            {
-                "prefect.deployments.steps.run_shell_script": {
-                    "script": "python /scripts/setup-ssh.py"
-                }
-            },
-            {
-                "prefect.deployments.steps.git_clone": {
-                    "id": "clone",
-                    "repository": "ssh://git@nrtn.dev/noroutine/ipfix-analytics.git",
-                    "branch": "master"
-                }
-            }
-        ]
+        cron="*/5 * * * *",  # Every 5 minutes
+        paused=False,
+        enforce_parameter_schema=True
     )
 
-    deployment_id = deployment.apply()
     print(f"✓ Deployed: {deployment_id}")
-    return deployment_id
+    return str(deployment_id)
 
 
 def deploy_ipfix_analytics_production(dry_run: bool = False) -> Optional[str]:
@@ -153,42 +135,28 @@ def deploy_ipfix_analytics_production(dry_run: bool = False) -> Optional[str]:
         print("  [DRY RUN] Would deploy but skipping...")
         return None
 
-    deployment = Deployment.build_from_flow(
-        flow=ipfix_pipeline,
+    # Prefect 3.x API: use flow.deploy() instead of Deployment.build_from_flow()
+    deployment_id = ipfix_pipeline.deploy(
         name="ipfix-analytics-production",
         version=commit_hash,
         description="IPFIX Analytics Pipeline - dbt, Evidence, and R2 deployment (production)",
         tags=["production", "analytics", "dbt", "evidence", "scheduled"],
         work_pool_name="bo01-runner-docker",
-        work_queue_name=None,
+        job_variables={
+            "image": image_name
+        },
         parameters={
             "retention_days": int(os.getenv("RETENTION_DAYS", "5")),
             "minio_credentials_block": "minio-ipfix-credentials",
             "r2_credentials_block": "r2-ipfix-analytics-credentials"
         },
-        schedule=IntervalSchedule(interval=timedelta(seconds=3600)),  # 1 hour
-        job_variables={
-            "image": image_name
-        },
-        pull=[
-            {
-                "prefect.deployments.steps.run_shell_script": {
-                    "script": "python /scripts/setup-ssh.py"
-                }
-            },
-            {
-                "prefect.deployments.steps.git_clone": {
-                    "id": "clone",
-                    "repository": "ssh://git@nrtn.dev/noroutine/ipfix-analytics.git",
-                    "branch": "master"
-                }
-            }
-        ]
+        cron="0 * * * *",  # Every hour (at minute 0)
+        paused=False,
+        enforce_parameter_schema=True
     )
 
-    deployment_id = deployment.apply()
     print(f"✓ Deployed: {deployment_id}")
-    return deployment_id
+    return str(deployment_id)
 
 
 def build_docker_image(dry_run: bool = False) -> str:
