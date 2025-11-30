@@ -1,5 +1,13 @@
 # Prefect Deployment Setup
 
+for future me:
+
+```bash
+./scripts/build-ipfix-pipeline-image.sh
+uv run prefect deploy --all
+```
+
+
 ## Overview
 This document describes how to deploy the IPFIX Analytics Pipeline to a non-local Prefect worker pool using git-based deployment.
 
