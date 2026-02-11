@@ -73,7 +73,7 @@ The script uses `scripts/build-ipfix-pipeline-image.sh` to build multi-architect
 $ python deploy.py
 
 Building Docker image:
-  Image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:abc1234
+  Image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:abc1234
   Script: scripts/build-ipfix-pipeline-image.sh
   Platforms: linux/amd64, linux/arm64
 
@@ -81,7 +81,7 @@ Running scripts/build-ipfix-pipeline-image.sh...
 ================================================
 Building Multi-Platform Docker Image
 ================================================
-Image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+Image: cr.noroutine.me/sandbox/ipfix-pipeline-worker
 SHA: abc1234
 Branch: master
 Platforms: linux/amd64,linux/arm64
@@ -90,7 +90,7 @@ Platforms: linux/amd64,linux/arm64
 
 Deploying ClickHouse Export to production
   Commit: abc1234
-  Image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:abc1234
+  Image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:abc1234
   Schedule: Every 5 minutes
 ```
 
@@ -125,7 +125,7 @@ Test deployment configuration without making changes:
 $ python deploy.py --dry-run
 
 Building Docker image:
-  Image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:abc1234
+  Image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:abc1234
   [DRY RUN] Would build and push but skipping...
 
 Deploying ClickHouse Export to production

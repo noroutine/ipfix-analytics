@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # Configuration
-IMAGE_REGISTRY="cr.nrtn.dev/sandbox"
+IMAGE_REGISTRY="cr.noroutine.me/sandbox"
 IMAGE_NAME="ipfix-pipeline-worker"
 PLATFORMS="linux/amd64,linux/arm64"
 BUILDER_NAME="multiarch"

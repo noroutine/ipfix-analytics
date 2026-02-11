@@ -40,7 +40,7 @@ def get_git_commit_hash() -> str:
 
 def get_docker_image_name(commit_hash: str) -> str:
     """Generate Docker image name with commit hash tag."""
-    return f"cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{commit_hash}"
+    return f"cr.noroutine.me/sandbox/ipfix-pipeline-worker:{commit_hash}"
 
 
 def deploy_clickhouse_export_production(dry_run: bool = False) -> Optional[str]:

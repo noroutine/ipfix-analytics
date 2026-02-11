@@ -79,12 +79,12 @@ deployments:
     # - prefect_docker.deployments.steps.build_docker_image:
     #     id: build-image
     #     requires: prefect-docker>=0.6.0
-    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     image_name: cr.noroutine.me/sandbox/ipfix-pipeline-worker
     #     tag: "{{ get-commit-hash.stdout }}"
     #     dockerfile: Dockerfile
     # - prefect_docker.deployments.steps.push_docker_image:
     #     id: push-image
-    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     image_name: cr.noroutine.me/sandbox/ipfix-pipeline-worker
     #     tag: "{{ get-commit-hash.stdout }}"
     pull:
       - prefect.deployments.steps.run_shell_script:
@@ -97,7 +97,7 @@ deployments:
       name: ws-mac-00055-docker
       work_queue_name: null
       job_variables:
-        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+        image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
     enforce_parameter_schema: true
 
   - name: ipfix-analytics
@@ -128,12 +128,12 @@ deployments:
     # - prefect_docker.deployments.steps.build_docker_image:
     #     id: build-image
     #     requires: prefect-docker>=0.6.0
-    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     image_name: cr.noroutine.me/sandbox/ipfix-pipeline-worker
     #     tag: "{{ get-commit-hash.stdout }}"
     #     dockerfile: Dockerfile
     # - prefect_docker.deployments.steps.push_docker_image:
     #     id: push-image
-    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     image_name: cr.noroutine.me/sandbox/ipfix-pipeline-worker
     #     tag: "{{ get-commit-hash.stdout }}"
     pull:
       - prefect.deployments.steps.run_shell_script:
@@ -146,7 +146,7 @@ deployments:
       name: lab05-runner-docker
       work_queue_name: null
       job_variables:
-        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+        image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
     enforce_parameter_schema: true
 
   # ClickHouse Export Pipeline Deployments
@@ -208,7 +208,7 @@ deployments:
     # - prefect_docker.deployments.steps.build_docker_image:
     #     id: build-image
     #     requires: prefect-docker>=0.6.0
-    #     image_name: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+    #     image_name: cr.noroutine.me/sandbox/ipfix-pipeline-worker
     #     tag: "{{ get-commit-hash.stdout }}"
     #     dockerfile: Dockerfile
     pull:
@@ -222,7 +222,7 @@ deployments:
       name: ws-mac-00055-docker
       work_queue_name: null
       job_variables:
-        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+        image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
     enforce_parameter_schema: true
 
   - name: clickhouse-export
@@ -263,5 +263,5 @@ deployments:
       name: lab05-runner-docker
       work_queue_name: null
       job_variables:
-        image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
+        image: cr.noroutine.me/sandbox/ipfix-pipeline-worker:{{ get-commit-hash.stdout }}
     enforce_parameter_schema: true

@@ -9,7 +9,7 @@ Multi-architecture Docker image builder for the IPFIX pipeline worker.
 - **Multi-platform builds**: Creates images for both `linux/amd64` and `linux/arm64`
 - **Automatic tagging**: Tags with git commit SHA, branch name, and `latest`
 - **Docker buildx**: Uses docker buildx for cross-platform builds
-- **Registry push**: Automatically pushes to `cr.nrtn.dev/sandbox/ipfix-pipeline-worker`
+- **Registry push**: Automatically pushes to `cr.noroutine.me/sandbox/ipfix-pipeline-worker`
 
 ### Usage
 
@@ -19,9 +19,9 @@ bash scripts/build-ipfix-pipeline-image.sh
 ```
 
 This creates and pushes:
-- `cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{git-sha}`
-- `cr.nrtn.dev/sandbox/ipfix-pipeline-worker:{branch}`
-- `cr.nrtn.dev/sandbox/ipfix-pipeline-worker:latest`
+- `cr.noroutine.me/sandbox/ipfix-pipeline-worker:{git-sha}`
+- `cr.noroutine.me/sandbox/ipfix-pipeline-worker:{branch}`
+- `cr.noroutine.me/sandbox/ipfix-pipeline-worker:latest`
 
 #### Build with custom tag:
 ```bash
@@ -29,12 +29,12 @@ bash scripts/build-ipfix-pipeline-image.sh v1.2.3
 ```
 
 This creates all the above tags PLUS:
-- `cr.nrtn.dev/sandbox/ipfix-pipeline-worker:v1.2.3`
+- `cr.noroutine.me/sandbox/ipfix-pipeline-worker:v1.2.3`
 
 ### Requirements
 
 - Docker with buildx plugin
-- Docker registry authentication for `cr.nrtn.dev`
+- Docker registry authentication for `cr.noroutine.me`
 - Git repository (for SHA and branch detection)
 
 ### Example Output
@@ -43,7 +43,7 @@ This creates all the above tags PLUS:
 ================================================
 Building Multi-Platform Docker Image
 ================================================
-Image: cr.nrtn.dev/sandbox/ipfix-pipeline-worker
+Image: cr.noroutine.me/sandbox/ipfix-pipeline-worker
 SHA: abc1234
 Branch: master
 Platforms: linux/amd64,linux/arm64
@@ -55,10 +55,10 @@ Building and pushing...
 ...
 ✅ Build complete!
 Tags pushed:
-  • cr.nrtn.dev/sandbox/ipfix-pipeline-worker:abc1234
-  • cr.nrtn.dev/sandbox/ipfix-pipeline-worker:master
-  • cr.nrtn.dev/sandbox/ipfix-pipeline-worker:latest
-  • cr.nrtn.dev/sandbox/ipfix-pipeline-worker:v1.2.3
+  • cr.noroutine.me/sandbox/ipfix-pipeline-worker:abc1234
+  • cr.noroutine.me/sandbox/ipfix-pipeline-worker:master
+  • cr.noroutine.me/sandbox/ipfix-pipeline-worker:latest
+  • cr.noroutine.me/sandbox/ipfix-pipeline-worker:v1.2.3
 ```
 
 ### Used By
@@ -79,7 +79,7 @@ docker buildx use multiarch
 #### Registry authentication error
 ```bash
 # Login to registry
-docker login cr.nrtn.dev
+docker login cr.noroutine.me
 ```
 
 #### Platform not supported
