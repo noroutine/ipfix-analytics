@@ -1,0 +1,30 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "ca0a027f9461",
+  "strategy": "manual-commit",
+  "branch": "master",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "PYTHON_DEPLOY.md",
+    "deploy.py",
+    "prefect.yaml",
+    "scripts/README.md",
+    "scripts/build-ipfix-pipeline-image.sh"
+  ],
+  "sessions": [
+    {
+      "metadata": "/ca/0a027f9461/0/metadata.json",
+      "transcript": "/ca/0a027f9461/0/full.jsonl",
+      "context": "/ca/0a027f9461/0/context.md",
+      "content_hash": "/ca/0a027f9461/0/content_hash.txt",
+      "prompt": "/ca/0a027f9461/0/prompt.txt"
+    }
+  ],
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 21712,
+    "cache_read_tokens": 149697,
+    "output_tokens": 1211,
+    "api_call_count": 6
+  }
+}

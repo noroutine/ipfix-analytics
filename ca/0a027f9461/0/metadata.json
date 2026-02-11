@@ -1,0 +1,33 @@
+{
+  "cli_version": "0.4.2",
+  "checkpoint_id": "ca0a027f9461",
+  "session_id": "c8d44a53-00cb-4cda-8ec2-9dfa11f15b9b",
+  "strategy": "manual-commit",
+  "created_at": "2026-02-11T10:53:22.291388Z",
+  "branch": "master",
+  "checkpoints_count": 1,
+  "files_touched": [
+    "PYTHON_DEPLOY.md",
+    "deploy.py",
+    "prefect.yaml",
+    "scripts/README.md",
+    "scripts/build-ipfix-pipeline-image.sh"
+  ],
+  "agent": "Claude Code",
+  "token_usage": {
+    "input_tokens": 8,
+    "cache_creation_tokens": 21712,
+    "cache_read_tokens": 149697,
+    "output_tokens": 1211,
+    "api_call_count": 6
+  },
+  "initial_attribution": {
+    "calculated_at": "2026-02-11T10:53:22.278607Z",
+    "agent_lines": 27,
+    "human_added": 93,
+    "human_modified": 0,
+    "human_removed": 0,
+    "total_committed": 120,
+    "agent_percentage": 22.5
+  }
+}
